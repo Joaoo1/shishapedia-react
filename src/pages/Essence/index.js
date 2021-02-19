@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 
 import api from '../../services/api';
 
@@ -27,30 +27,56 @@ function Essence({ title }) {
   const [message, setMessage] = useState('');
   const [isError, setError] = useState(false);
 
-  let iconId = null;
-  let imageId = null;
+  const [iconId, setIconId] = useState(null);
+  const [imageId, setImageId] = useState(null);
 
   async function handleUploadImage(event) {
     try {
       setLoading(true);
-      if (event.target.files && event.target.files[0]) {
-        const response = await api.post('/images', event.target.files[0]);
-        imageId = response.data.image.id;
-        iconId = response.data.icon.id;
+      if (event.target.files) {
+        const data = new FormData();
+        data.append('image', event.target.files[0]);
+        const response = await api.patch('/images', data);
+        setIconId(response.data.icon.id);
+        setImageId(response.data.image.id);
       }
 
       setError(false);
       setMessage('Imagem enviada com sucesso');
     } catch (err) {
       setError(true);
-      setMessage(err);
+      if (err.response) {
+        setMessage(err.response.data.error);
+      } else {
+        setMessage(err.message);
+      }
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleSubmitForm() {
-    if (!essenceName || !essenceProposal || !brandId || brandId === 0) {
+  const resetForm = useCallback(() => {
+    setEssenceName('');
+    setEssenceProposal('');
+    setEssenceDescription('');
+    setBrandId(0);
+    setImageId(null);
+    setIconId(null);
+    setMessage('');
+  });
+
+  const handleSubmitForm = useCallback(async (e) => {
+    e.preventDefault();
+    if (
+      !essenceName ||
+      !essenceProposal ||
+      !brandId ||
+      brandId === 0 ||
+      !imageId ||
+      !iconId
+    ) {
+      setError(true);
+      setMessage('Preencha todos os campos');
       return;
     }
 
@@ -68,13 +94,18 @@ function Essence({ title }) {
 
       setError(false);
       setMessage('Essência adicionada com sucesso');
+      resetForm();
     } catch (err) {
       setError(true);
-      setMessage(err);
+      if (err.response) {
+        setMessage(err.response.data.error);
+      } else {
+        setMessage(err.message);
+      }
     } finally {
       setLoading(false);
     }
-  }
+  });
 
   return (
     <Container>
@@ -89,12 +120,14 @@ function Essence({ title }) {
         </LoadingContainer>
       )}
       <Title>{title}</Title>
-      <FormContainer>
+      <FormContainer onSubmit={handleSubmitForm}>
         <UploadButton
           type="file"
           accept="image/*"
           onChange={handleUploadImage}
         />
+        <p>{`Image ID: ${imageId}`}</p>
+        <p>{`Icon ID: ${iconId}`}</p>
         <Input
           type="text"
           placeholder="Nome da essência"
@@ -117,11 +150,9 @@ function Essence({ title }) {
           type="number"
           placeholder="ID da marca"
           value={brandId}
-          onChange={(e) => setBrandId(e.target.value)}
+          onChange={(e) => setBrandId(parseInt(e.target.value, 10))}
         />
-        <SubmitButton type="submit" onSubmit={handleSubmitForm}>
-          Cadastrar
-        </SubmitButton>
+        <SubmitButton type="submit">Cadastrar</SubmitButton>
         <MessageContainer className={isError ? 'error' : 'success'}>
           <Message>{message}</Message>
         </MessageContainer>
